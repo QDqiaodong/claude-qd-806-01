@@ -1,5 +1,7 @@
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS bag_allocation;
+DROP TABLE IF EXISTS number_seq;
 DROP TABLE IF EXISTS harvest_inventory;
 DROP TABLE IF EXISTS contamination_record;
 DROP TABLE IF EXISTS harvest_flush;
@@ -184,6 +186,40 @@ CREATE TABLE harvest_inventory (
     CONSTRAINT fk_inventory_batch FOREIGN KEY (fruiting_batch_id) REFERENCES fruiting_batch(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 出菇批次发号器：入房分配与历史批次共用同一序列，事务内原子自增，多人同时分配也不会重号
+CREATE TABLE number_seq (
+    seq_key VARCHAR(16) PRIMARY KEY,
+    seq INT NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 菌包开袋后的分批入房记录：与出菇批次一一对应（fruiting_batch_id 唯一）。
+-- 撤回时保留本行（状态置为已撤回、批次引用置空），删除尚未开始的出菇批次并归还数量；
+-- fruiting_batch_no 冗余保存批次号，撤回后仍可追溯当时生成的批次编号。
+CREATE TABLE bag_allocation (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    allocation_no VARCHAR(40) NOT NULL,
+    request_key VARCHAR(64) NOT NULL,
+    bag_batch_id BIGINT NOT NULL,
+    room_id BIGINT NOT NULL,
+    fruiting_batch_id BIGINT NULL,
+    fruiting_batch_no VARCHAR(40) NOT NULL,
+    quantity INT NOT NULL,
+    planned_entry_date DATE NOT NULL,
+    manager VARCHAR(40) NOT NULL,
+    status VARCHAR(16) NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    revoked_at DATETIME NULL,
+    revoked_by VARCHAR(40) NULL,
+    revoke_note VARCHAR(255) NULL,
+    UNIQUE KEY uk_allocation_request (request_key),
+    UNIQUE KEY uk_allocation_no (allocation_no),
+    UNIQUE KEY uk_allocation_fruiting (fruiting_batch_id),
+    KEY idx_allocation_bag (bag_batch_id, status),
+    CONSTRAINT fk_alloc_bag FOREIGN KEY (bag_batch_id) REFERENCES bag_batch(id),
+    CONSTRAINT fk_alloc_room FOREIGN KEY (room_id) REFERENCES grow_room(id),
+    CONSTRAINT fk_alloc_fruiting FOREIGN KEY (fruiting_batch_id) REFERENCES fruiting_batch(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 INSERT INTO grow_room (room_code, orientation, area, species, status) VALUES
 ('GR-A01', '东向', 128.50, '金针菇', '出菇'),
 ('GR-A02', '南向', 136.00, '杏鲍菇', '出菇'),
@@ -256,6 +292,10 @@ INSERT INTO fruiting_batch (batch_no, room_id, bag_batch_id, species, entry_date
 ('FB-260910-03', 3, 3, '香菇', '2026-09-10', 610.00, 210.00, '一潮结束'),
 ('FB-260912-04', 4, 4, '平菇', '2026-09-12', 390.00, 216.00, '二潮结束'),
 ('FB-260915-05', 1, 5, '金针菇', '2026-09-15', 500.00, 0.00, '待采收');
+
+-- 出菇批次发号从存量批次最大序号续起；历史批次没有入房记录，不影响新分配流程
+INSERT INTO number_seq (seq_key, seq)
+SELECT 'FRUITING', COALESCE(MAX(CAST(SUBSTRING_INDEX(batch_no, '-', -1) AS UNSIGNED)), 0) FROM fruiting_batch;
 
 INSERT INTO harvest_flush (batch_id, flush_no, harvest_date, grade_a_yield, grade_b_yield, grade_c_yield, yield_kg, harvested_by, status) VALUES
 (1, 1, '2026-09-08', 112.00, 42.00, 14.00, 168.00, '周启明', '已采收'),

@@ -36,6 +36,11 @@ public class BagRepository {
         return jdbc.query("SELECT * FROM bag_batch WHERE id=:id", Map.of("id", id), mapper).stream().findFirst();
     }
 
+    /** 分配/撤回时锁定菌包行：同一批次的扣减与归还串行，剩余数量判断不会被并发打断 */
+    public Optional<BagBatch> findByIdForUpdate(Long id) {
+        return jdbc.query("SELECT * FROM bag_batch WHERE id=:id FOR UPDATE", Map.of("id", id), mapper).stream().findFirst();
+    }
+
     public Long save(BagBatch batch) {
         return insert.executeAndReturnKey(new BeanPropertySqlParameterSource(batch)).longValue();
     }
@@ -50,6 +55,12 @@ public class BagRepository {
                 UPDATE bag_batch SET available_quantity=available_quantity-:quantity
                 WHERE id=:id AND available_quantity>=:quantity
                 """, new MapSqlParameterSource().addValue("id", id).addValue("quantity", quantity));
+    }
+
+    /** 撤回入房分配时归还数量 */
+    public void increaseAvailable(Long id, int quantity) {
+        jdbc.update("UPDATE bag_batch SET available_quantity=available_quantity+:quantity WHERE id=:id",
+                new MapSqlParameterSource().addValue("id", id).addValue("quantity", quantity));
     }
 
     public List<Map<String, Object>> statusSummary() {

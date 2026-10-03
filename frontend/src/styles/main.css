@@ -327,6 +327,54 @@ button { color: inherit; }
 .paused-text { color: #c5473b; }
 .pause-banner { margin-top: 12px; padding: 11px 16px; color: #7c2f26; background: #fbeae7; border: 1px solid #ecc5bf; font-size: 12px; }
 
+/* 菌包入房分配 */
+.allocation-stats { display: flex; gap: 2px; padding: 6px; background: #303328; }
+.allocation-stats > div { padding: 9px 18px; border-right: 1px solid #4b4e42; }
+.allocation-stats > div:last-child { border: 0; }
+.allocation-stats b { display: block; color: #e0d45f; font: 800 22px Georgia, serif; }
+.allocation-stats span { color: #9da08e; font-size: 10px; letter-spacing: .1em; }
+.bag-card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.alloc-card { display: flex; flex-direction: column; padding: 20px 22px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 4px 16px 4px 16px; box-shadow: 0 9px 26px rgba(48,51,36,.06); }
+.alloc-card > header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.alloc-card h2 { margin: 5px 0 0; font-size: 15px; font-weight: 700; }
+.alloc-metrics { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 14px; border: 1px solid #e3e4da; }
+.alloc-metrics > div { padding: 12px 14px; border-right: 1px solid #e3e4da; }
+.alloc-metrics > div:last-child { border: 0; }
+.alloc-metrics span { display: block; color: #8a8d7e; font-size: 10px; letter-spacing: .08em; }
+.alloc-metrics strong { display: block; margin-top: 5px; font: 800 20px Georgia, serif; }
+.alloc-metrics .metric-remaining { background: #343829; }
+.alloc-metrics .metric-remaining span { color: #afb29f; }
+.alloc-metrics .metric-remaining strong { color: #e3d95f; }
+.alloc-progress { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+.alloc-progress-track { flex: 1; height: 7px; background: #e4e5d9; }
+.alloc-progress-track i { display: block; height: 100%; background: #827717; transition: width .3s ease; }
+.alloc-progress > span { color: #83867a; font-size: 10px; }
+.alloc-records { margin-top: 14px; }
+.alloc-records-title { display: flex; justify-content: space-between; align-items: baseline; padding-bottom: 8px; border-bottom: 1px solid #e3e4da; }
+.alloc-records-title span { font-size: 12px; font-weight: 800; }
+.alloc-records-title small { color: #9a9c8e; font-size: 10px; }
+.alloc-record { display: flex; justify-content: space-between; gap: 12px; padding: 11px 0; border-bottom: 1px dashed #dcddd0; }
+.alloc-record:last-child { border-bottom: 0; }
+.alloc-record.revoked { opacity: .62; }
+.alloc-record-main { min-width: 0; }
+.alloc-record-main b { font-size: 13px; }
+.alloc-no { margin-left: 8px; color: var(--olive); font: 700 10px ui-monospace, monospace; }
+.alloc-record-sub { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 5px; color: #777a6a; font-size: 11px; }
+.revoke-info { margin-top: 6px; color: #8a8c7e; font-size: 10px; }
+.block-info { margin-top: 6px; color: #a63427; font-size: 10px; }
+.alloc-record-side { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.alloc-card > footer { display: flex; align-items: center; gap: 10px; margin-top: auto; padding-top: 14px; border-top: 1px dashed #d7d8cb; }
+.alloc-done { color: #9a9c8e; font-size: 11px; }
+.other-bags { margin-top: 26px; padding: 20px 22px; background: var(--panel); border: 1px solid var(--line); }
+.other-bags-title h3 { margin: 4px 0 14px; font-family: Georgia, "Songti SC", serif; }
+.other-bag-row { display: flex; align-items: center; gap: 14px; padding: 10px 0; border-top: 1px dashed #dcddd0; }
+.other-bag-main { min-width: 0; }
+.other-bag-main b { display: block; font: 800 12px ui-monospace, monospace; }
+.other-bag-main span { display: block; margin-top: 3px; max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #919386; font-size: 10px; }
+.other-bag-note { flex: 1; color: #83867a; font-size: 11px; }
+.quantity-line { display: flex; gap: 10px; align-items: center; width: 100%; }
+.dialog-hint { margin: 4px 0 0; color: #909284; font-size: 11px; line-height: 1.7; }
+
 @media (max-width: 1220px) {
   .command-header { grid-template-columns: 235px minmax(400px, 1fr) 260px; padding: 0 22px; gap: 18px; }
   .workspace { padding: 28px 24px; }

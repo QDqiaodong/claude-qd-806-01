@@ -52,6 +52,49 @@ public class FruitingRepository {
         return jdbc.query("SELECT * FROM fruiting_batch WHERE id=:id", Map.of("id", id), batchMapper).stream().findFirst();
     }
 
+    /** 撤回分配前锁定批次行，与采收/环境暂停的写操作互斥 */
+    public Optional<FruitingBatch> findByIdForUpdate(Long id) {
+        return jdbc.query("SELECT * FROM fruiting_batch WHERE id=:id FOR UPDATE", Map.of("id", id), batchMapper)
+                .stream().findFirst();
+    }
+
+    /** 出菇批次全局序号：事务内原子自增（LAST_INSERT_ID 发号），多人同时入房也不会重号 */
+    public int nextFruitingSeq() {
+        jdbc.update("""
+                INSERT INTO number_seq (seq_key, seq) VALUES ('FRUITING', LAST_INSERT_ID(1))
+                ON DUPLICATE KEY UPDATE seq = LAST_INSERT_ID(seq + 1)
+                """, Map.of());
+        Integer seq = jdbc.queryForObject("SELECT LAST_INSERT_ID()", Map.of(), Integer.class);
+        return seq == null ? 1 : seq;
+    }
+
+    /** 批次关联过的环境处置单 id（存在即说明批次被处置单暂停过，须保留原状） */
+    public Optional<Long> findEnvTicketId(Long batchId) {
+        return jdbc.query("SELECT ticket_id FROM environment_ticket_batch WHERE fruiting_batch_id=:id ORDER BY id LIMIT 1",
+                Map.of("id", batchId), (rs, rowNum) -> rs.getLong(1)).stream().findFirst();
+    }
+
+    public int countHarvestedFlushes(Long batchId) {
+        Integer count = jdbc.queryForObject("SELECT COUNT(*) FROM harvest_flush WHERE batch_id=:id AND status='已采收'",
+                Map.of("id", batchId), Integer.class);
+        return count == null ? 0 : count;
+    }
+
+    public int countInventory(Long batchId) {
+        Integer count = jdbc.queryForObject("SELECT COUNT(*) FROM harvest_inventory WHERE fruiting_batch_id=:id",
+                Map.of("id", batchId), Integer.class);
+        return count == null ? 0 : count;
+    }
+
+    /** 撤回时删除尚未开始的潮次计划行（只允许在无任何采收记录时调用） */
+    public void deleteFlushesByBatch(Long batchId) {
+        jdbc.update("DELETE FROM harvest_flush WHERE batch_id=:id", Map.of("id", batchId));
+    }
+
+    public void deleteBatchById(Long batchId) {
+        jdbc.update("DELETE FROM fruiting_batch WHERE id=:id", Map.of("id", batchId));
+    }
+
     /** 仍在生产的批次：已结束、环境暂停、人工暂停都不算在产 */
     public List<FruitingBatch> findProductionByRoomId(Long roomId) {
         return jdbc.query("""
