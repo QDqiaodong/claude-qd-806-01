@@ -137,7 +137,7 @@ public class EnvironmentTicketService {
         Long ticketId = ticketRepository.save(ticket);
         addEvent(ticketId, "触发", null,
                 "连续 " + state.getOverStreak() + " 条读数越限：" + ticket.getTriggerMetric(), record.getRecordedAt());
-        List<FruitingBatch> batches = fruitingRepository.findProductionByRoomId(room.getId());
+        List<FruitingBatch> batches = fruitingRepository.findProductionByRoomIdForUpdate(room.getId());
         for (FruitingBatch batch : batches) {
             EnvironmentTicketBatch item = new EnvironmentTicketBatch();
             item.setTicketId(ticketId);

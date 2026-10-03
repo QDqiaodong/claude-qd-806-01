@@ -7,6 +7,7 @@ DROP TABLE IF EXISTS environment_ticket_event;
 DROP TABLE IF EXISTS environment_ticket_batch;
 DROP TABLE IF EXISTS environment_ticket;
 DROP TABLE IF EXISTS room_env_state;
+DROP TABLE IF EXISTS room_entry;
 DROP TABLE IF EXISTS fruiting_batch;
 DROP TABLE IF EXISTS environment_record;
 DROP TABLE IF EXISTS rack_slot;
@@ -132,6 +133,30 @@ CREATE TABLE fruiting_batch (
     status VARCHAR(16) NOT NULL,
     CONSTRAINT fk_fruiting_room FOREIGN KEY (room_id) REFERENCES grow_room(id),
     CONSTRAINT fk_fruiting_bag FOREIGN KEY (bag_batch_id) REFERENCES bag_batch(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 分批入房记录：已开袋菌包按数量拆次投产，每条在制记录与一个出菇批次一一对应。
+-- 撤回入房时出菇批次被删除、数量归还，记录保留为“已撤回”审计轨迹，因此
+-- fruiting_batch_id 允许为空，并以非空部分唯一索引兜底，防止重复配对/重复批次。
+-- 历史已有的出菇批次不强制补造记录（fruiting_batch 无对应 room_entry 即视为历史数据）。
+CREATE TABLE room_entry (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    entry_no VARCHAR(40) NOT NULL UNIQUE,
+    bag_batch_id BIGINT NOT NULL,
+    room_id BIGINT NOT NULL,
+    fruiting_batch_id BIGINT NULL,
+    quantity INT NOT NULL,
+    planned_entry_date DATE NOT NULL,
+    manager VARCHAR(40) NOT NULL,
+    status VARCHAR(16) NOT NULL DEFAULT '在制',
+    withdrawn_by VARCHAR(40) NOT NULL DEFAULT '',
+    withdrawn_at DATETIME NULL,
+    fruiting_batch_no VARCHAR(40) NOT NULL DEFAULT '',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_entry_active_fruiting (fruiting_batch_id),
+    KEY idx_entry_bag (bag_batch_id, status),
+    CONSTRAINT fk_entry_bag FOREIGN KEY (bag_batch_id) REFERENCES bag_batch(id),
+    CONSTRAINT fk_entry_room FOREIGN KEY (room_id) REFERENCES grow_room(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE harvest_flush (

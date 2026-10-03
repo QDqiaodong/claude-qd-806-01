@@ -52,12 +52,18 @@ public class FruitingRepository {
         return jdbc.query("SELECT * FROM fruiting_batch WHERE id=:id", Map.of("id", id), batchMapper).stream().findFirst();
     }
 
-    /** 仍在生产的批次：已结束、环境暂停、人工暂停都不算在产 */
-    public List<FruitingBatch> findProductionByRoomId(Long roomId) {
+    /** 事务内行锁：撤回与采收、环境处置暂停/恢复在同一批次行上串行，杜绝“边采边撤” */
+    public Optional<FruitingBatch> findByIdForUpdate(Long id) {
+        return jdbc.query("SELECT * FROM fruiting_batch WHERE id=:id FOR UPDATE", Map.of("id", id), batchMapper).stream().findFirst();
+    }
+
+    /** 触发环境处置单时锁定该房在产批次行，与入房撤回串行，避免撤回与暂停快照互相穿插 */
+    public List<FruitingBatch> findProductionByRoomIdForUpdate(Long roomId) {
         return jdbc.query("""
                 SELECT * FROM fruiting_batch
                 WHERE room_id=:roomId AND status NOT IN ('已结束', '环境暂停', '人工暂停')
                 ORDER BY id
+                FOR UPDATE
                 """, Map.of("roomId", roomId), batchMapper);
     }
 
@@ -100,6 +106,45 @@ public class FruitingRepository {
     public void updateBatchYield(Long batchId, java.math.BigDecimal harvestedYield) {
         jdbc.update("UPDATE fruiting_batch SET harvested_yield=:yield WHERE id=:id",
                 new MapSqlParameterSource().addValue("id", batchId).addValue("yield", harvestedYield));
+    }
+
+    /**
+     * 撤回在制入房分配：确认无任何下游关联后删除出菇批次（room_entry 保留为“已撤回”留痕）。
+     * 必须先过 harvest_flush / harvest_inventory / environment_ticket_batch 三道关联检查。
+     */
+    public int deleteById(Long batchId) {
+        return jdbc.update("DELETE FROM fruiting_batch WHERE id=:id", Map.of("id", batchId));
+    }
+
+    /**
+     * 删除批次预置的“待采收”潮次占位行。调用方必须已确认没有任何“已采收”潮次或库存流水，
+     * 因此这里只会删掉未使用的占位行，不会误删采收数据。
+     */
+    public int deletePendingFlushes(Long batchId) {
+        return jdbc.update("DELETE FROM harvest_flush WHERE batch_id=:id AND status='待采收'",
+                Map.of("id", batchId));
+    }
+
+    /** 采收侧关联：任何一潮已录入采收，或已写入过库存流水，都不能撤回 */
+    public boolean hasHarvestOrInventory(Long batchId) {
+        Integer flushCount = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM harvest_flush WHERE batch_id=:id AND status='已采收'",
+                Map.of("id", batchId), Integer.class);
+        Integer inventoryCount = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM harvest_inventory WHERE fruiting_batch_id=:id",
+                Map.of("id", batchId), Integer.class);
+        return (flushCount != null && flushCount > 0) || (inventoryCount != null && inventoryCount > 0);
+    }
+
+    /**
+     * 环境处置侧关联：批次曾被任何处置单暂停过（含已解除单）即留下关联记录不能撤回；
+     * 仍处于环境暂停的批次同样在此拦下。
+     */
+    public int countTicketLinks(Long batchId) {
+        Integer count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM environment_ticket_batch WHERE fruiting_batch_id=:id",
+                Map.of("id", batchId), Integer.class);
+        return count == null ? 0 : count;
     }
 
     public Long saveInventory(HarvestInventory inventory) {

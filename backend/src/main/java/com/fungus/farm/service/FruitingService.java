@@ -40,7 +40,7 @@ public class FruitingService {
         if (flushNo == null || flushNo < 1 || flushNo > 3) {
             throw new BizException("潮次只能是一潮、二潮或三潮");
         }
-        FruitingBatch batch = batch(batchId);
+        FruitingBatch batch = batchForUpdate(batchId);
         if ("环境暂停".equals(batch.getStatus())) {
             throw new BizException("该批次因环境越限处置暂停生产，处置单解除后才能采收");
         }
@@ -98,6 +98,11 @@ public class FruitingService {
 
     private FruitingBatch batch(Long id) {
         return repository.findById(id).orElseThrow(() -> new BizException("出菇批次不存在"));
+    }
+
+    /** 采收事务内锁定批次行，与分批入房撤回、环境处置暂停串行，防止边采边撤 */
+    private FruitingBatch batchForUpdate(Long id) {
+        return repository.findByIdForUpdate(id).orElseThrow(() -> new BizException("出菇批次不存在"));
     }
 
     private BigDecimal zero(BigDecimal value) {

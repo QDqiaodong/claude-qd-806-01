@@ -36,6 +36,11 @@ public class BagRepository {
         return jdbc.query("SELECT * FROM bag_batch WHERE id=:id", Map.of("id", id), mapper).stream().findFirst();
     }
 
+    /** 事务内行锁：同一菌包批次的并发分配/撤回在此串行，杜绝超分 */
+    public Optional<BagBatch> findByIdForUpdate(Long id) {
+        return jdbc.query("SELECT * FROM bag_batch WHERE id=:id FOR UPDATE", Map.of("id", id), mapper).stream().findFirst();
+    }
+
     public Long save(BagBatch batch) {
         return insert.executeAndReturnKey(new BeanPropertySqlParameterSource(batch)).longValue();
     }
@@ -52,7 +57,20 @@ public class BagRepository {
                 """, new MapSqlParameterSource().addValue("id", id).addValue("quantity", quantity));
     }
 
+    /** 撤回在制入房分配时归还数量 */
+    public void increaseAvailable(Long id, int quantity) {
+        jdbc.update("UPDATE bag_batch SET available_quantity=available_quantity+:quantity WHERE id=:id",
+                new MapSqlParameterSource().addValue("id", id).addValue("quantity", quantity));
+    }
+
     public List<Map<String, Object>> statusSummary() {
         return jdbc.queryForList("SELECT status, SUM(total_quantity) quantity FROM bag_batch GROUP BY status ORDER BY status", Map.of());
+    }
+
+    /** 各菌包批次在培养架上的占用量：与分批入房共用 available_quantity，对账与去向都要算进去 */
+    public List<Map<String, Object>> shelvedQuantities() {
+        return jdbc.queryForList(
+                "SELECT bag_batch_id, SUM(quantity) AS quantity FROM rack_slot GROUP BY bag_batch_id",
+                Map.of());
     }
 }
